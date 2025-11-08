@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(pip install:*)",
+      "Bash(python3:*)",
+      "Bash(django-admin startproject:*)",
+      "Bash(sudo service postgresql status:*)",
+      "Bash(sudo -u postgres psql:*)",
+      "Bash(psql:*)",
+      "Bash(DJANGO_SUPERUSER_PASSWORD=admin python3 manage.py:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
