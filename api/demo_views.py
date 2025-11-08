@@ -2,13 +2,38 @@
 Demo views showing different ways to use JWT OAuth2 authentication.
 """
 from functools import wraps
-from django.http import JsonResponse
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from oauth2_provider.contrib.rest_framework import TokenHasScope, TokenHasReadWriteScope
 
 from .jwt_auth import JWTAuthentication
+
+
+def required_scopes(scopes):
+    """
+    Decorator to set required_scopes on a function-based view.
+    Must be applied at the TOP of the decorator stack (first decorator, runs last).
+
+    Usage:
+        @required_scopes(['read'])  # Apply FIRST (runs LAST after @api_view creates .cls)
+        @api_view(['GET'])
+        @authentication_classes([JWTAuthentication])
+        @permission_classes([IsAuthenticated, TokenHasScope])
+        def my_view(request):
+            ...
+
+    Args:
+        scopes: List of required scopes (e.g., ['read'], ['write'], ['read', 'write'])
+    """
+    def decorator(view_func):
+        # The @api_view decorator wraps the function and creates a .cls attribute
+        # Since decorators are applied bottom-to-top, this decorator runs AFTER @api_view
+        # So the .cls attribute should exist by now
+        if hasattr(view_func, 'cls'):
+            view_func.cls.required_scopes = scopes
+        return view_func
+    return decorator
 
 
 # ============================================================================
@@ -44,6 +69,7 @@ def demo_simple_protected(request):
 # Example 2: Function-based view with specific scope requirement
 # ============================================================================
 
+@required_scopes(['read'])
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated, TokenHasScope])
@@ -67,14 +93,12 @@ def demo_read_scope(request):
         'scopes_granted': request.auth.get('scope') if request.auth else None,
     })
 
-# Set required scopes on the wrapped view class
-demo_read_scope.cls.required_scopes = ['read']
-
 
 # ============================================================================
 # Example 3: Function-based view with write scope
 # ============================================================================
 
+@required_scopes(['write'])
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated, TokenHasScope])
@@ -95,8 +119,6 @@ def demo_write_scope(request):
         'data': data,
         'scopes_granted': request.auth.get('scope') if request.auth else None,
     })
-
-demo_write_scope.cls.required_scopes = ['write']
 
 
 # ============================================================================
@@ -141,6 +163,7 @@ def demo_read_or_write(request):
 # Example 5: Function-based view with admin scope
 # ============================================================================
 
+@required_scopes(['admin'])
 @api_view(['GET', 'POST', 'DELETE'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated, TokenHasScope])
@@ -165,8 +188,6 @@ def demo_admin_scope(request):
         'admin_access': True,
         'scopes': request.auth.get('scope') if request.auth else None,
     })
-
-demo_admin_scope.cls.required_scopes = ['admin']
 
 
 # ============================================================================
@@ -229,6 +250,7 @@ def demo_manual_scope_check(request):
 # Example 7: Multiple scopes required (AND logic)
 # ============================================================================
 
+@required_scopes(['read', 'write'])
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated, TokenHasScope])
@@ -249,8 +271,6 @@ def demo_multiple_scopes(request):
         'data': request.data,
         'scopes': request.auth.get('scope') if request.auth else None,
     })
-
-demo_multiple_scopes.cls.required_scopes = ['read', 'write']
 
 
 # ============================================================================
