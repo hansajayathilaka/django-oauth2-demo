@@ -144,7 +144,7 @@ CORS_ALLOW_ALL_ORIGINS = True  # For development only
 # REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "oauth2_provider.contrib.rest_framework.OAuth2Authentication",
+        "api.jwt_auth.JWTAuthentication",  # JWT authentication for JWT tokens
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",

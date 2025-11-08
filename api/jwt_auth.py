@@ -42,6 +42,7 @@ def decode_jwt_token(jwt_value):
             'verify_signature': True,
             'verify_exp': True,
             'verify_iat': True,
+            'verify_aud': False,  # Don't verify audience (client_id varies)
         }
     )
     return decoded
@@ -123,7 +124,7 @@ class JWTAuthentication(BaseAuthentication):
     def authenticate_credentials(self, payload):
         """
         Returns an active user from the JWT payload.
-        For client_credentials tokens (no user), returns AnonymousUser.
+        For client_credentials tokens (no user), creates a special authenticated anonymous user.
         """
         if getattr(settings, 'JWT_AUTH_DISABLED', False):
             return AnonymousUser()
@@ -132,21 +133,32 @@ class JWTAuthentication(BaseAuthentication):
         user_id = payload.get('sub')
         username = payload.get('username')
 
-        # If no user information, this is a client_credentials token
-        if not user_id or not username:
-            return AnonymousUser()
+        # If we have user information, validate the user
+        if username:
+            User = get_user_model()
+            try:
+                user = User.objects.get(id=user_id, username=username)
+                if not user.is_active:
+                    raise exceptions.AuthenticationFailed('User account is disabled')
+                return user
+            except User.DoesNotExist:
+                raise exceptions.AuthenticationFailed('User not found')
 
-        User = get_user_model()
+        # For client_credentials tokens, create an authenticated "system" user
+        # This is a special anonymous user that appears authenticated for permission checks
+        class AuthenticatedAnonymousUser(AnonymousUser):
+            """
+            Anonymous user that appears authenticated.
+            Used for client_credentials OAuth2 grants.
+            """
+            @property
+            def is_authenticated(self):
+                return True
 
-        try:
-            user = User.objects.get(id=user_id, username=username)
-        except User.DoesNotExist:
-            raise exceptions.AuthenticationFailed('User not found')
+            def __str__(self):
+                return 'OAuth2Client'
 
-        if not user.is_active:
-            raise exceptions.AuthenticationFailed('User account is disabled')
-
-        return user
+        return AuthenticatedAnonymousUser()
 
     def _get_jwt_value(self, request):
         """

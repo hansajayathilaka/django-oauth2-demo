@@ -19,16 +19,16 @@ class HelloWorldView(APIView):
 
 class ProtectedView(APIView):
     """
-    Protected endpoint that requires OAuth2 authentication.
+    Protected endpoint that requires JWT authentication.
     """
-    # Uses default OAuth2Authentication from settings.py
+    # Uses default JWTAuthentication from settings.py
 
     def get(self, request):
         return Response({
             "message": "You have successfully authenticated!",
             "user": str(request.user) if request.user else "Anonymous",
-            "client_id": request.auth.application.client_id if hasattr(request.auth, 'application') else None,
-            "scopes": request.auth.scope if hasattr(request.auth, 'scope') else None,
+            "client_id": request.auth.get('client_id') if request.auth else None,
+            "scopes": request.auth.get('scope') if request.auth else None,
         })
 
 

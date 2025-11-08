@@ -1,6 +1,7 @@
 """
 Demo views showing different ways to use JWT OAuth2 authentication.
 """
+from functools import wraps
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -66,8 +67,8 @@ def demo_read_scope(request):
         'scopes_granted': request.auth.get('scope') if request.auth else None,
     })
 
-# Set required scopes for the view
-demo_read_scope.required_scopes = ['read']
+# Set required scopes on the wrapped view class
+demo_read_scope.cls.required_scopes = ['read']
 
 
 # ============================================================================
@@ -95,7 +96,7 @@ def demo_write_scope(request):
         'scopes_granted': request.auth.get('scope') if request.auth else None,
     })
 
-demo_write_scope.required_scopes = ['write']
+demo_write_scope.cls.required_scopes = ['write']
 
 
 # ============================================================================
@@ -165,7 +166,7 @@ def demo_admin_scope(request):
         'scopes': request.auth.get('scope') if request.auth else None,
     })
 
-demo_admin_scope.required_scopes = ['admin']
+demo_admin_scope.cls.required_scopes = ['admin']
 
 
 # ============================================================================
@@ -249,7 +250,7 @@ def demo_multiple_scopes(request):
         'scopes': request.auth.get('scope') if request.auth else None,
     })
 
-demo_multiple_scopes.required_scopes = ['read', 'write']
+demo_multiple_scopes.cls.required_scopes = ['read', 'write']
 
 
 # ============================================================================
@@ -298,6 +299,7 @@ def demo_token_info(request):
 # ============================================================================
 
 @api_view(['GET'])
+@permission_classes([])  # Override default permission classes - no authentication required
 def demo_public(request):
     """
     Public endpoint that doesn't require authentication.
@@ -319,6 +321,7 @@ def demo_public(request):
 
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
+@permission_classes([])  # Override default - authentication is optional
 def demo_optional_auth(request):
     """
     Endpoint where authentication is optional.
