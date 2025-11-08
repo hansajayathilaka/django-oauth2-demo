@@ -169,4 +169,20 @@ OAUTH2_PROVIDER = {
     "REFRESH_TOKEN_EXPIRE_SECONDS": 86400,  # 24 hours
     # Allow refresh token rotation
     "ROTATE_REFRESH_TOKEN": True,
+    # Use JWT token generator for access tokens
+    "ACCESS_TOKEN_GENERATOR": "api.token_generator.generate_token",
 }
+
+# JWT Configuration
+JWT_ISSUER = os.getenv("JWT_ISSUER", "oauth2-server")
+JWT_ID_ATTRIBUTE = "id"  # Use user.id as the subject
+JWT_AUTH_HEADER_PREFIX = "Bearer"  # Authorization: Bearer <jwt_token>
+JWT_ENC_ALGORITHM = "RS256"  # Use RS256 algorithm
+JWT_JWS_ALGORITHMS = ["RS256"]  # Allowed algorithms for verification
+
+# Read RSA keys from files
+with open(BASE_DIR / "jwtRS256.key", "r") as f:
+    JWT_PRIVATE_KEY_OAUTH2_SERVER = f.read()
+
+with open(BASE_DIR / "jwtRS256.key.pub", "r") as f:
+    JWT_PUBLIC_KEY_OAUTH2_SERVER = f.read()

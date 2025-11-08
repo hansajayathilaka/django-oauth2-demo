@@ -8,7 +8,8 @@
       "Bash(sudo service postgresql status:*)",
       "Bash(sudo -u postgres psql:*)",
       "Bash(psql:*)",
-      "Bash(DJANGO_SUPERUSER_PASSWORD=admin python3 manage.py:*)"
+      "Bash(DJANGO_SUPERUSER_PASSWORD=admin python3 manage.py:*)",
+      "WebFetch(domain:django-oauth-toolkit.readthedocs.io)"
     ],
     "deny": [],
     "ask": []

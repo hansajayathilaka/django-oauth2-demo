@@ -50,3 +50,6 @@ Thumbs.db
 
 # Database
 *.db
+
+# jwt keys
+*.key*

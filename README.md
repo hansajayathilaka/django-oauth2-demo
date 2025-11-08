@@ -4,7 +4,8 @@ A complete Django application implementing OAuth2 authentication for REST APIs w
 
 ## Features
 
-- **OAuth2 Authentication**: Full OAuth2 provider implementation using django-oauth-toolkit
+- **OAuth2 Authentication**: Full OAuth2 provider implementation using django-oauth-toolkit 3.1.0
+- **JWT Tokens**: Access tokens ARE JSON Web Tokens (JWT) signed with RS256 algorithm
 - **Grant Types**: Client Credentials and Refresh Token support
 - **Scopes & Permissions**: Granular access control with custom scopes (read, write, admin)
 - **REST API**: Protected API endpoints using Django REST Framework
@@ -115,23 +116,26 @@ curl -X POST http://localhost:8000/o/token/ \
 
 # Response:
 {
-    "access_token": "your-access-token-here",
+    "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJvYXV0aDItc2VydmVyIiwiZXhwIjoxNjQwMDAwMDAwLCJpYXQiOjE2NDAwMDAwMDAsImp0aSI6InVuaXF1ZS1pZCIsImNsaWVudF9pZCI6InlvdXItY2xpZW50LWlkIiwiYXVkIjoieW91ci1jbGllbnQtaWQiLCJzY29wZSI6InJlYWQgd3JpdGUiLCJzdWIiOiJ5b3VyLWNsaWVudC1pZCJ9...",
     "expires_in": 3600,
     "token_type": "Bearer",
     "scope": "read write"
 }
 ```
 
+**Note**: The `access_token` is a JWT token (not a random string). You can decode it at [jwt.io](https://jwt.io) to inspect the claims.
+
 #### Protected View
 ```bash
+# Use the JWT access_token for authentication
 curl -X GET http://localhost:8000/api/protected/ \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+  -H "Authorization: Bearer YOUR_JWT_ACCESS_TOKEN"
 
 # Response:
 {
     "message": "You have successfully authenticated!",
-    "user": "admin",
-    "client_id": "your-client-id",
+    "user": "AnonymousUser",
+    "client_id": null,
     "scopes": "read write"
 }
 ```
@@ -188,6 +192,48 @@ curl -X POST http://localhost:8000/o/revoke_token/ \
   -d "client_secret=YOUR_CLIENT_SECRET"
 ```
 
+## JWT Token Implementation
+
+### How It Works
+
+This implementation uses **JWT tokens as the actual OAuth2 access tokens** (not alongside them). When you request a token from `/o/token/`, the `access_token` field contains a JWT token.
+
+### Token Generation
+
+1. **Custom Generator**: The `ACCESS_TOKEN_GENERATOR` setting points to `api.token_generator.generate_token`
+2. **RS256 Algorithm**: Tokens are signed using RSA private key with SHA-256
+3. **Standard Claims**: Each JWT contains:
+   - `iss`: Issuer ("oauth2-server")
+   - `exp`: Expiration timestamp
+   - `iat`: Issued at timestamp
+   - `jti`: Unique token ID
+   - `sub`: Subject (client_id for client_credentials)
+   - `aud`: Audience (client_id)
+   - `scope`: Granted scopes
+   - `client_id`: OAuth2 client identifier
+
+### Token Validation
+
+1. **JWT Authentication**: Custom DRF authentication class validates JWT signature
+2. **Public Key Verification**: Uses RSA public key to verify tokens
+3. **Expiration Check**: Automatically rejects expired tokens
+4. **Scope Validation**: Works with django-oauth-toolkit's `TokenHasScope` permission
+
+### Example JWT Payload
+
+```json
+{
+  "iss": "oauth2-server",
+  "exp": 1704067200,
+  "iat": 1704063600,
+  "jti": "550e8400-e29b-41d4-a716-446655440000",
+  "client_id": "your-client-id",
+  "aud": "your-client-id",
+  "scope": "read write",
+  "sub": "your-client-id"
+}
+```
+
 ## Available Scopes
 
 The following scopes are configured:
@@ -204,14 +250,18 @@ oauth2-demo/
 ├── requirements.txt
 ├── .env
 ├── README.md
+├── jwtRS256.key           # RSA private key for JWT signing
+├── jwtRS256.key.pub       # RSA public key for JWT verification
 ├── oauth2_server/          # Main project directory
-│   ├── settings.py         # Django settings with OAuth2 configuration
+│   ├── settings.py         # Django settings with OAuth2 + JWT configuration
 │   ├── urls.py            # URL routing
 │   └── wsgi.py
 └── api/                   # API application
     ├── admin.py           # Customized admin for OAuth2 models
     ├── views.py           # API endpoints
-    └── urls.py            # API URL routing
+    ├── urls.py            # API URL routing
+    ├── token_generator.py # JWT token generator for ACCESS_TOKEN_GENERATOR
+    └── jwt_auth.py        # JWT authentication for DRF
 ```
 
 ## Configuration
@@ -234,7 +284,22 @@ OAUTH2_PROVIDER = {
     "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,  # 1 hour
     "REFRESH_TOKEN_EXPIRE_SECONDS": 86400,  # 24 hours
     "ROTATE_REFRESH_TOKEN": True,
+    # Use custom JWT token generator
+    "ACCESS_TOKEN_GENERATOR": "api.token_generator.generate_token",
 }
+```
+
+### JWT Settings
+
+```python
+JWT_ISSUER = "oauth2-server"
+JWT_ENC_ALGORITHM = "RS256"  # RS256 algorithm
+JWT_JWS_ALGORITHMS = ["RS256"]  # Allowed algorithms for verification
+JWT_AUTH_HEADER_PREFIX = "Bearer"
+
+# RSA keys are loaded from files
+JWT_PRIVATE_KEY_OAUTH2_SERVER = "<content of jwtRS256.key>"
+JWT_PUBLIC_KEY_OAUTH2_SERVER = "<content of jwtRS256.key.pub>"
 ```
 
 ### REST Framework Settings
@@ -242,7 +307,8 @@ OAUTH2_PROVIDER = {
 ```python
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "oauth2_provider.contrib.rest_framework.OAuth2Authentication",
+        "api.jwt_auth.JWTAuthentication",  # JWT authentication
+        "oauth2_provider.contrib.rest_framework.OAuth2Authentication",  # Fallback
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
